@@ -108,3 +108,52 @@ Want to test all goes well? Lets have the EC2 machine do some upload. See modifi
 
     mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher launch
 
+Step 5: Security
+===
+
+Noticed something wrong with previous step? Right. The machine could not download your private code, could not run it, and therefore could not create the file. Lets add the required "~/.ec2/credentials.properties
+
+Or maybe not? Are you sure you wanna deploy your credentials to a public file? There should be a solution. And there is, deeply hidden in the SDK. An EC2 machine can run as a "Role". A role is a set of policies defined in Amazon Identity Access Management (IAM) that grants permissions on resources accross all of Amazon Web Services.
+
+But how do the Java program know about the credentials? Doesn't matter. If you provide no credentials and the machine has a role, the SDK will do the magic for you (in fact, get fresh credentials every 15 minutes from a private server somewhere on the private Amazon network and update them in signature)
+
+But how do I use my own credentials then? Introducing `com.amazonaws.auth.AWSCredentialsProvider`:
+
+    private AWSCredentialsProvider getAwsCredentials() {
+        try {
+            return new StaticCredentialsProvider(new PropertiesCredentials(new File(System.getProperty("user.home"), ".ec2/credentials.properties")));
+        } catch (IOException e) {
+            return new DefaultAWSCredentialsProviderChain();
+        }
+    }
+
+You can use it everywhere you needed an `AWSCredentials` (in each service client constructor). Only sad thing is that it doesn't implement same interface to be drop-in replacement. Now, your code will attempt credentials from local disk, and default to SDK supplied "Role" credentials.
+
+Now, we have to grant the required policies to our "Role", and run the machine as this one. Example policy for S3 is [there](./securityPolicies/codeDownloader.txt). Assume policy enables the role to trust EC2. Example assume policy [there](./securityPolicies/assumePolicy.txt)
+
+    AmazonIdentityManagement identityManagement = new AmazonIdentityManagementClient(credentials);
+    identityManagement.createRole(new CreateRoleRequest().withRoleName("runner").withAssumeRolePolicyDocument(FileUtils.readFileToString(new File("./securityPolicies/assumePolicy.txt"))));
+    identityManagement.putRolePolicy(new PutRolePolicyRequest().withRoleName("runner").withPolicyName("codeDownloader").withPolicyDocument(FileUtils.readFileToString(new File("./securityPolicies/codeDownloader.txt"))));
+    identityManagement.putRolePolicy(new PutRolePolicyRequest().withRoleName("runner").withPolicyName("fileUploader").withPolicyDocument(FileUtils.readFileToString(new File("./securityPolicies/fileUploader.txt"))));
+    identityManagement.createInstanceProfile(new CreateInstanceProfileRequest().withInstanceProfileName("runnerProfile"));
+    identityManagement.addRoleToInstanceProfile(new AddRoleToInstanceProfileRequest().withInstanceProfileName("runnerProfile").withRoleName("runner"));
+
+    GetInstanceProfileResult runnerProfile = identityManagement.getInstanceProfile(new GetInstanceProfileRequest().withInstanceProfileName("runnerProfile"));
+    return runnerProfile.getInstanceProfile().getArn();
+
+You're better wrapping each line in its own try-catch statement to avoid problems when running for the second time (policies will then already exist). We now have a "Role" named "runner". Lets use it:
+
+    machines.runInstances(
+            new RunInstancesRequest()
+                    .withImageId("ami-c7c0d6b3") // This used to be the official, Ireland running, 32 bit Amazon Machine Image. Or pick, for instance, [Ubuntu](http://cloud-images.ubuntu.com/locator/ec2/)
+                    .withInstanceType(InstanceType.T1Micro) // Smallest possible, cheapest. Be warned: Cc28xlarge can set you back 3.75$ per call per machine per hour... [Pricing](http://aws.amazon.com/fr/ec2/#pricing)
+                    .withMaxCount(count)
+                    .withMinCount(count)
+                    .withIamInstanceProfile(new IamInstanceProfileSpecification().withName("runner"))
+                    .withUserData(printBase64Binary(FileUtils.readFileToString(new File(pathToScript), "UTF-8").getBytes("UTF-8")))
+
+Ready? Go!
+
+    mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher launch
+
+You should now have a file somewhere in your bucket with time stamp and host name, that contains "I was there". Cool, huh?

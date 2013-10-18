@@ -1,0 +1,15 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "s3:PutObject"
+      ],
+      "Sid": "Stmt2",
+      "Resource": [
+        "arn:aws:s3:::code.myproject.com/*"
+      ],
+      "Effect": "Allow"
+    }
+  ]
+}
