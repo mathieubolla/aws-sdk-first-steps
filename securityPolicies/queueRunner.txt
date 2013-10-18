@@ -1,0 +1,29 @@
+{
+  "Version": "2012-10-17",
+  "Statement": [
+    {
+      "Action": [
+        "sqs:GetQueueUrl",
+        "sqs:ReceiveMessage",
+        "sqs:DeleteMessage",
+        "sqs:ChangeMessageVisibility"
+      ],
+      "Sid": "Stmt3",
+      "Resource": [
+        "{{inputArn}}"
+      ],
+      "Effect": "Allow"
+    },
+    {
+      "Action": [
+        "sqs:GetQueueUrl",
+        "sqs:SendMessage"
+      ],
+      "Sid": "Stmt4",
+      "Resource": [
+        "{{reportArn}}"
+      ],
+      "Effect": "Allow"
+    }
+  ]
+}

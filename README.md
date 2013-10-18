@@ -161,3 +161,59 @@ Step 5.1: Get ready for the mustache
 ---
 
 We have written two policy files that deserve some dynamic variables. Lets factor in some Mustache kinda templates for added flexibility.
+
+Step 6: Lets do something cool
+===
+
+Lets now start doing something cool. We will get a URL from a queue, download it, if it is HTML, read and report URLs in it, and save the file to S3. Sounds good? It's also really simple.
+
+First, we need queues. SQS to the rescue. Queues are stupid: They have a name, but we need their URL. Lets create and get name:
+
+
+    private static void checkCreateQueues(AmazonSQS queue, String... queueNames) {
+        for (String queueName : queueNames) {
+            queue.createQueue(new CreateQueueRequest().withQueueName(queueName));
+        }
+    }
+
+    private static String getQueueUrl(AmazonSQS queue, String queueName) {
+        return queue.getQueueUrl(new GetQueueUrlRequest().withQueueName(queueName)).getQueueUrl();
+    }
+
+We can now send messages, like that:
+
+
+    private static void sendMessageTo(AmazonSQS queue, String queueName, String message) {
+        queue.sendMessage(new SendMessageRequest().withQueueUrl(getQueueUrl(queue, queueName)).withMessageBody(message));
+    }
+
+And from the other end of the queue, lets read a message. It has two interesting strings: Body and receipt. Body is what we sent, receipt is a handle to delete or prevent resubmition of the message. Think transaction handle.
+
+
+    private static String[] readMessageFrom(AmazonSQS queue, String queueName) {
+        ReceiveMessageResult receiveMessageResult = queue.receiveMessage(
+                new ReceiveMessageRequest()
+                        .withQueueUrl(getQueueUrl(queue, queueName))
+                        .withMaxNumberOfMessages(1) // Process one at a time
+                        .withWaitTimeSeconds(20) // Use long polling client
+        );
+        if (receiveMessageResult.getMessages().isEmpty()) {
+            return readMessageFrom(queue, queueName);
+        }
+
+        Message message = receiveMessageResult.getMessages().get(0);
+        return new String[]{message.getBody(), message.getReceiptHandle()};
+    }
+
+We can now delete a message (remove it from the queue) or renew a message (get some more time to process it):
+
+
+    private static void acknowledge(AmazonSQS queue, String queueName, String receipt) {
+        queue.deleteMessage(new DeleteMessageRequest().withQueueUrl(getQueueUrl(queue, queueName)).withReceiptHandle(receipt));
+    }
+
+    private static void renewTimeout(AmazonSQS queue, String queueName, String receipt) {
+        queue.changeMessageVisibility(new ChangeMessageVisibilityRequest().withQueueUrl(getQueueUrl(queue, queueName)).withReceiptHandle(receipt).withVisibilityTimeout(20)); // Say I need 20 more seconds to process
+    }
+
+Lets build on that to process URLs on the Input queue, and report results to the Report queue. Hoh, dont forget: You need read permission on input and write permission on output.
