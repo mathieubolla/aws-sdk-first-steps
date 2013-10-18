@@ -90,3 +90,21 @@ Now, our magic command line will upload our jar file to our bucket:
     mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher
 
 Wanna make sure all went well? Get our of command line, and check [there](https://console.aws.amazon.com/s3/home?region=eu-west-1#)
+
+Step 4: Lets run it
+===
+
+Now, we've got some code in the cloud. Lets run it.
+
+Most EC2 Linux machines can run small (some kB) shell scripts at startup. That's much more than needed. We will get our code local to the machine, and run it. Sounds good? Go!
+
+Huh hoh... For your machine to download code, you need code to be public on S3. But everybody with internet connection can download your public code, you don't want to do it with critical code. How to solve that? Use public code that only download private code, and starts it. I've got the [solution](https://github.com/mathieubolla/aws-sdk-bootstraper), that resolves to:
+
+    curl "http://code.mathieu-bolla.com/maven/snapshot/aws-sdk-bootstraper/aws-sdk-bootstraper/1.0-SNAPSHOT/aws-sdk-bootstraper-1.0-20131018.100941-1-jar-with-dependencies.jar" > bootstraper.jar
+
+See ./shell/startupScript.sh for the pretty details.
+
+Want to test all goes well? Lets have the EC2 machine do some upload. See modified Launcher for details. It will create a file with hostname and date on S3:
+
+    mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher launch
+
