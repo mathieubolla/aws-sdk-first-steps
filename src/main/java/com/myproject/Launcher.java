@@ -5,6 +5,7 @@ import com.amazonaws.auth.DefaultAWSCredentialsProviderChain;
 import com.amazonaws.auth.PropertiesCredentials;
 import com.amazonaws.internal.StaticCredentialsProvider;
 import com.amazonaws.regions.*;
+import com.amazonaws.regions.Region;
 import com.amazonaws.services.ec2.AmazonEC2;
 import com.amazonaws.services.ec2.AmazonEC2Client;
 import com.amazonaws.services.ec2.model.IamInstanceProfileSpecification;
@@ -17,13 +18,16 @@ import com.amazonaws.services.identitymanagement.model.*;
 import com.amazonaws.services.s3.AmazonS3;
 import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.*;
-import com.amazonaws.services.s3.model.Region;
+import com.amazonaws.services.sqs.AmazonSQS;
+import com.amazonaws.services.sqs.AmazonSQSClient;
+import com.amazonaws.services.sqs.model.CreateQueueRequest;
 import org.apache.commons.io.FileUtils;
 import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.util.Date;
 
+import static com.amazonaws.services.s3.model.Region.*;
 import static java.net.InetAddress.getLocalHost;
 import static javax.xml.bind.DatatypeConverter.printBase64Binary;
 
@@ -36,13 +40,20 @@ public class Launcher {
         AWSCredentialsProvider credentials = getAwsCredentials();
 
         AmazonS3 storage = new AmazonS3Client(credentials);
+        storage.setRegion(Region.getRegion(Regions.EU_WEST_1));
+
+        AmazonEC2 machines = new AmazonEC2Client(credentials);
+        machines.setRegion(Region.getRegion(Regions.EU_WEST_1));
+
+        AmazonIdentityManagement identityManagement = new AmazonIdentityManagementClient(credentials);
+        identityManagement.setRegion(Region.getRegion(Regions.EU_WEST_1));
 
         if ("launch".equals(args[0])) {
             checkCreateBucket(storage, CODE_MYPROJECT_COM); // Moved in local machine running code to avoid permission denied on EC2 machines
 
             upload(storage, new FileInputStream("./target/" + JAR_FILE), CODE_MYPROJECT_COM, JAR_FILE, "application/java-archive", CannedAccessControlList.Private);
 
-            run(credentials, "./shell/startupScript.sh", 1, setupRunnerSecurity(credentials, CODE_MYPROJECT_COM));
+            run(machines, "./shell/startupScript.sh", 1, setupRunnerSecurity(identityManagement, CODE_MYPROJECT_COM));
         } else if ("run".equals(args[0])) {
             upload(storage, new ByteArrayInputStream("I was there".getBytes()), CODE_MYPROJECT_COM, new Date().toString() + " " + getLocalHost().getHostName(), "text/plain", CannedAccessControlList.Private);
         } else {
@@ -50,9 +61,7 @@ public class Launcher {
         }
     }
 
-    private static void run(AWSCredentialsProvider credentials, String pathToScript, int count, String profileArn) throws IOException {
-        AmazonEC2 machines = new AmazonEC2Client(credentials);
-        machines.setRegion(com.amazonaws.regions.Region.getRegion(Regions.EU_WEST_1));
+    private static void run(AmazonEC2 machines, String pathToScript, int count, String profileArn) throws IOException {
         machines.runInstances(
             new RunInstancesRequest()
                 .withImageId("ami-c7c0d6b3") // This used to be the official, Ireland running, 32 bit Amazon Machine Image. Or pick, for instance, [Ubuntu](http://cloud-images.ubuntu.com/locator/ec2/)
@@ -75,7 +84,7 @@ public class Launcher {
 
     private static void checkCreateBucket(AmazonS3 storage, String bucket) {
         if (!exists(storage, bucket)) {
-            storage.createBucket(new CreateBucketRequest(bucket, Region.EU_Ireland));
+            storage.createBucket(new CreateBucketRequest(bucket, EU_Ireland));
         }
     }
 
@@ -96,9 +105,7 @@ public class Launcher {
         }
     }
 
-    private static String setupRunnerSecurity(AWSCredentialsProvider credentials, String bucketName) throws IOException {
-        AmazonIdentityManagement identityManagement = new AmazonIdentityManagementClient(credentials);
-
+    private static String setupRunnerSecurity(AmazonIdentityManagement identityManagement, String bucketName) throws IOException {
         try {
             identityManagement.createRole(new CreateRoleRequest().withRoleName("runner").withAssumeRolePolicyDocument(FileUtils.readFileToString(new File("./securityPolicies/assumePolicy.txt"))));
         } catch (Exception e) {
