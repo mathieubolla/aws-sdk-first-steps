@@ -157,3 +157,7 @@ Ready? Go!
     mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher launch
 
 You should now have a file somewhere in your bucket with time stamp and host name, that contains "I was there". Cool, huh?
+Step 5.1: Get ready for the mustache
+---
+
+We have written two policy files that deserve some dynamic variables. Lets factor in some Mustache kinda templates for added flexibility.

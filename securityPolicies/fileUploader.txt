@@ -7,7 +7,7 @@
       ],
       "Sid": "Stmt2",
       "Resource": [
-        "arn:aws:s3:::code.myproject.com/*"
+        "arn:aws:s3:::{{bucketName}}/*"
       ],
       "Effect": "Allow"
     }

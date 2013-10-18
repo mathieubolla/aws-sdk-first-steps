@@ -19,6 +19,7 @@ import com.amazonaws.services.s3.AmazonS3Client;
 import com.amazonaws.services.s3.model.*;
 import com.amazonaws.services.s3.model.Region;
 import org.apache.commons.io.FileUtils;
+import org.apache.commons.lang3.StringUtils;
 
 import java.io.*;
 import java.util.Date;
@@ -41,7 +42,7 @@ public class Launcher {
 
             upload(storage, new FileInputStream("./target/" + JAR_FILE), CODE_MYPROJECT_COM, JAR_FILE, "application/java-archive", CannedAccessControlList.Private);
 
-            run(credentials, "./shell/startupScript.sh", 1, setupRunnerSecurity(credentials));
+            run(credentials, "./shell/startupScript.sh", 1, setupRunnerSecurity(credentials, CODE_MYPROJECT_COM));
         } else if ("run".equals(args[0])) {
             upload(storage, new ByteArrayInputStream("I was there".getBytes()), CODE_MYPROJECT_COM, new Date().toString() + " " + getLocalHost().getHostName(), "text/plain", CannedAccessControlList.Private);
         } else {
@@ -95,7 +96,7 @@ public class Launcher {
         }
     }
 
-    private static String setupRunnerSecurity(AWSCredentialsProvider credentials) throws IOException {
+    private static String setupRunnerSecurity(AWSCredentialsProvider credentials, String bucketName) throws IOException {
         AmazonIdentityManagement identityManagement = new AmazonIdentityManagementClient(credentials);
 
         try {
@@ -105,13 +106,13 @@ public class Launcher {
         }
 
         try {
-            identityManagement.putRolePolicy(new PutRolePolicyRequest().withRoleName("runner").withPolicyName("codeDownloader").withPolicyDocument(FileUtils.readFileToString(new File("./securityPolicies/codeDownloader.txt"))));
+            identityManagement.putRolePolicy(new PutRolePolicyRequest().withRoleName("runner").withPolicyName("codeDownloader").withPolicyDocument(templateALaMustache(FileUtils.readFileToString(new File("./securityPolicies/codeDownloader.txt")), "bucketName", bucketName)));
         } catch (Exception e) {
             e.printStackTrace();
         }
 
         try {
-            identityManagement.putRolePolicy(new PutRolePolicyRequest().withRoleName("runner").withPolicyName("fileUploader").withPolicyDocument(FileUtils.readFileToString(new File("./securityPolicies/fileUploader.txt"))));
+            identityManagement.putRolePolicy(new PutRolePolicyRequest().withRoleName("runner").withPolicyName("fileUploader").withPolicyDocument(templateALaMustache(FileUtils.readFileToString(new File("./securityPolicies/fileUploader.txt")), "bucketName", bucketName)));
         } catch (Exception e) {
             e.printStackTrace();
         }
@@ -136,5 +137,9 @@ public class Launcher {
         }
 
         throw new RuntimeException("Could not create instance profile");
+    }
+
+    private static String templateALaMustache(String template, String variable, String value) {
+        return StringUtils.replace(template, "{{" + variable + "}}", value);
     }
 }
