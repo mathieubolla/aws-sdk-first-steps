@@ -57,3 +57,36 @@ Lets go: `mvn clean install exec:java -Dexec.mainClass="com.myproject.Launcher"`
 Basic trouble shooting: If you get message `com.amazonaws.services.s3.model.AmazonS3Exception: Status Code: 403, AWS Service: Amazon S3, AWS Request ID: AD413BCD3F522B20, AWS Error Code: InvalidAccessKeyId, AWS Error Message: The AWS Access Key Id you provided does not exist in our records.` then you input the wrong key id or secret. Double check your identifiers.
 
 If all goes well, you will see nothing but the header lines, because you currently have no Amazon S3 bucket (or you lied and already know how to use S3).
+
+Step 3: Our first upload
+===
+
+Lets add some maven magic to deal with dependencies. We don't want our project to be split in multiple unmanageable parts. See pom.xml to know how. We can now run with:
+
+    mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher
+
+Thats means that this jar file is the only thing required to launch our beast. Lets make it "self uploadable"...
+
+First, we need a bucket to store our files. Here is one:
+
+    private static void checkCreateBucket(AmazonS3 storage, String bucket) {
+        if (!exists(storage, bucket)) {
+            storage.createBucket(new CreateBucketRequest(bucket, Region.EU_Ireland));
+        }
+    }
+
+Next, we need to upload our file to the bucket:
+
+    private static void upload(AmazonS3 storage, InputStream inputStream, String bucketName, String key, String contentType, CannedAccessControlList acl) throws FileNotFoundException {
+        ObjectMetadata objectMetadata = new ObjectMetadata();
+        objectMetadata.setContentType(contentType);
+        storage.putObject(
+                new PutObjectRequest(bucketName, key, inputStream, objectMetadata)
+                    .withCannedAcl(acl));
+    }
+
+Now, our magic command line will upload our jar file to our bucket:
+
+    mvn clean install && java -cp target/aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar com.myproject.Launcher
+
+Wanna make sure all went well? Get our of command line, and check [there](https://console.aws.amazon.com/s3/home?region=eu-west-1#)
