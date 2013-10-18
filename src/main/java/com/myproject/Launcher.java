@@ -24,8 +24,13 @@ import static com.myproject.UrlUtils.download;
 public class Launcher {
     public static final String CODE_MYPROJECT_COM = "code.myproject.com";
     public static final String JAR_FILE = "aws-sdk-first-steps-1.0-SNAPSHOT-jar-with-dependencies.jar";
+
     public static final String INPUT_QUEUE = CODE_MYPROJECT_COM.replace('.', '-') + "-input";
     public static final String REPORT_QUEUE = CODE_MYPROJECT_COM.replace('.', '-')+ "-report";
+
+    public static final String START_URL = "https://www.google.fr/?q=maven#q=maven";
+    public static final int DOWNLOADED_URLs = 500;
+    public static final int NUMBER_OF_MACHINES = 5;
 
     public static void main(String... args) throws IOException {
         AWSCredentialsProvider credentials = CredentialsUtils.getAwsCredentials();
@@ -83,12 +88,12 @@ public class Launcher {
         S3Utils.upload(storage, new FileInputStream("./target/" + JAR_FILE), CODE_MYPROJECT_COM, JAR_FILE, "application/java-archive", CannedAccessControlList.Private);
 
         String profileArn = IamUtils.setupRunnerSecurity(identityManagement, CODE_MYPROJECT_COM, SQSUtils.getQueueArn(queue, INPUT_QUEUE), SQSUtils.getQueueArn(queue, REPORT_QUEUE));
-        Ec2Utils.run(machines, "./shell/startupScript.sh", 1, profileArn);
+        Ec2Utils.run(machines, "./shell/startupScript.sh", NUMBER_OF_MACHINES, profileArn);
     }
 
     private static void manageAnswers(AmazonSQS queue) {
-        String startWith = "https://www.google.fr/?q=maven#q=maven";
-        int stopAt = 500;
+        String startWith = START_URL;
+        int stopAt = DOWNLOADED_URLs;
 
         SQSUtils.sendMessageTo(queue, INPUT_QUEUE, startWith);
 
@@ -112,6 +117,9 @@ public class Launcher {
             System.out.println("Asking analysis of "+url);
 
             if(processedUrls.size() >= stopAt) {
+                for (int i = 0; i < NUMBER_OF_MACHINES; i++) {
+                    SQSUtils.sendMessageTo(queue, INPUT_QUEUE, "SUICIDE");
+                }
                 break;
             }
         }
