@@ -26,3 +26,34 @@ Lets add some cool well-known Apache utilities:
 
 Check this out: `mvn clean install`
 
+Step 2: Getting dirty
+===
+
+`com.amazonaws.auth.AWSCredentials` is the magic interface to avoid the "Hoh my..." AWS Signature problem, best described [there](http://docs.aws.amazon.com/general/latest/gr/signing_aws_api_requests.html). `com.amazonaws.auth.BasicAWSCredentials is the simplest possible implementation, that asks you your credentials from [there](https://console.aws.amazon.com/iam/home?#security_credential).
+
+Once granted the credentials (you will have to create an account, and ask for a new Access Key), you can fill in the com.amazonaws.auth.BasicAWSCredentials(String accessKeyId, String accessKeySecret)`constructor, and be granted access to Amazon Web Services.
+
+Lets check it works with our first call to Amazon Simple Storage Service (S3 in short form):
+
+    AWSCredentials credentials = new BasicAWSCredentials("my-access-key-id", "my-secret-key-VERY-PRIVATE-ISNT-IT");
+
+    AmazonS3 storage = new AmazonS3Client(credentials);
+
+    System.out.println("Amazon S3 buckets: >>>>>>>>>>\n");
+    for (Bucket bucket : storage.listBuckets()) {
+        System.out.println(bucket);
+    }
+    System.out.println("\nAmazon S3 buckets: <<<<<<<<<<\n");
+
+One more thing: Nobody want its credentials in open source code, not even in code at all. Lets use `com.amazonaws.auth.PropertiesCredentials` and store our credentials in `~/.ec2/credentials.properties`. The following should do:
+
+    accessKey=my-access-key-id
+    secretKey=my-secret-key-MUCH-MORE-PRIVATE-ISNT-IT
+
+Replace your AwsCredentials with `AWSCredentials credentials = new PropertiesCredentials(new File(new File(System.getProperty("user.home"), ".ec2"), "credentials.properties"));`. Much better.
+
+Lets go: `mvn clean install exec:java -Dexec.mainClass="com.myproject.Launcher"`
+
+Basic trouble shooting: If you get message `com.amazonaws.services.s3.model.AmazonS3Exception: Status Code: 403, AWS Service: Amazon S3, AWS Request ID: AD413BCD3F522B20, AWS Error Code: InvalidAccessKeyId, AWS Error Message: The AWS Access Key Id you provided does not exist in our records.` then you input the wrong key id or secret. Double check your identifiers.
+
+If all goes well, you will see nothing but the header lines, because you currently have no Amazon S3 bucket (or you lied and already know how to use S3).
